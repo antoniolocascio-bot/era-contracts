@@ -50,6 +50,7 @@ import {Config, DeployedAddresses, GeneratedData} from "./DeployUtils.s.sol";
 import {DeployL1HelperScript} from "./DeployL1HelperScript.s.sol";
 import {FixedForceDeploymentsData} from "contracts/state-transition/l2-deps/IL2GenesisUpgrade.sol";
 
+import {MultiProofVerifier} from "contracts/state-transition/verifiers/MultiProofVerifier.sol";
 contract DeployCTMScript is Script, DeployL1HelperScript {
     using stdToml for string;
 
@@ -187,7 +188,17 @@ contract DeployCTMScript is Script, DeployL1HelperScript {
     function deployVerifiers() internal {
         (addresses.stateTransition.verifierFflonk) = deploySimpleContract("VerifierFflonk", false);
         (addresses.stateTransition.verifierPlonk) = deploySimpleContract("VerifierPlonk", false);
-        (addresses.stateTransition.verifier) = deploySimpleContract("Verifier", false);
+        if (config.multiProofVerifier) {
+            // Deploy MultiProofVerifier that requires BOTH Airbender and ZiSK proofs.
+            (addresses.stateTransition.ziskVerifier) = deploySimpleContract("ZiskVerifier", false);
+            (addresses.stateTransition.verifier) = deploySimpleContract("MultiProofVerifier", false);
+
+            vm.startBroadcast(msg.sender);
+            MultiProofVerifier(addresses.stateTransition.verifier).transferOwnership(config.ownerAddress);
+            vm.stopBroadcast();
+        } else {
+            (addresses.stateTransition.verifier) = deploySimpleContract("Verifier", false);
+        }
     }
 
     function setChainTypeManagerInServerNotifier() internal {
@@ -311,6 +322,9 @@ contract DeployCTMScript is Script, DeployL1HelperScript {
             addresses.stateTransition.chainTypeManagerImplementation
         );
         vm.serializeAddress("state_transition", "verifier_addr", addresses.stateTransition.verifier);
+        if (addresses.stateTransition.ziskVerifier != address(0)) {
+            vm.serializeAddress("state_transition", "zisk_verifier_addr", addresses.stateTransition.ziskVerifier);
+        }
         vm.serializeAddress("state_transition", "admin_facet_addr", addresses.stateTransition.adminFacet);
         vm.serializeAddress("state_transition", "mailbox_facet_addr", addresses.stateTransition.mailboxFacet);
         vm.serializeAddress("state_transition", "executor_facet_addr", addresses.stateTransition.executorFacet);
