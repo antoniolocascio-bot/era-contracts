@@ -69,6 +69,7 @@ struct StateTransitionDeployedAddresses {
     address verifierFflonk;
     address verifierPlonk;
     address ziskVerifier;
+    address multiProofVerifier;
     address adminFacet;
     address mailboxFacet;
     address executorFacet;
