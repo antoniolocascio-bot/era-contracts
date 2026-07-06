@@ -20,7 +20,11 @@ import {Ownable2Step} from "@openzeppelin/contracts-v4/access/Ownable2Step.sol";
 ///      proof[2]              = N  (number of Airbender proof elements)
 ///      proof[3 .. 3+N]       = Airbender SNARK proof elements
 ///      proof[3+N .. 3+N+24]  = ZiSK SNARK proof (24 uint256 = 768 bytes)
-///      proof[3+N+24 .. 3+N+32] = ZiSK public values (8 uint256 = 256 bytes)
+///      proof[3+N+24 .. 3+N+32] = ZiSK public values (8 uint256 = 256 bytes):
+///        word 0     = programVK (guest-ELF ROM root)
+///        words 1..6 = guest publics; word 1 is the full 32-byte batch
+///                     commitment keccak256(prevState || newState || batchInfo)
+///        word 7     = vadcop-final VK
 contract MultiProofVerifier is Ownable2Step, IVerifier {
     uint256 internal constant MULTI_PROOF_TYPE = 5;
 
@@ -34,6 +38,7 @@ contract MultiProofVerifier is Ownable2Step, IVerifier {
     error ProofTooShort();
     error AirbenderVerificationFailed();
     error ZiskVerificationFailed();
+    error ZiskCommitmentMismatch(uint256 expected, uint256 got);
 
     constructor(
         IVerifier _airbenderVerifier,
@@ -99,8 +104,21 @@ contract MultiProofVerifier is Ownable2Step, IVerifier {
             revert AirbenderVerificationFailed();
         }
 
-        // --- ZiSK verification ---
+        // --- Cross-proof binding ---
+        // The ZiSK proof's public values embed the batch commitment it attests
+        // to (guest-publics word 1); the batch public input verified above is
+        // that same commitment truncated by 32 bits. Requiring equality binds
+        // both sub-proofs to one state transition — without it they could
+        // attest to different transitions. This also enforces single-batch
+        // ranges for type-5 proofs (a multi-batch public input is a chained
+        // hash and can never equal a single batch's commitment).
         uint256 ziskStart = 3 + airbenderLen;
+        uint256 ziskCommitment = _proof[ziskStart + 25];
+        if (ziskCommitment >> 32 != args[0]) {
+            revert ZiskCommitmentMismatch(args[0], ziskCommitment >> 32);
+        }
+
+        // --- ZiSK verification ---
         uint256[] memory ziskProof = new uint256[](32);
         for (uint256 i = 0; i < 32; i++) {
             ziskProof[i] = _proof[ziskStart + i];

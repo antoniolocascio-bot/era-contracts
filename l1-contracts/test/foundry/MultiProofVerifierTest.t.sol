@@ -80,8 +80,28 @@ contract MultiProofVerifierTest is Test {
         for (uint256 i = 0; i < ziskLen; i++) {
             proof[5 + i] = i;
         }
+        // Guest-publics word 1 carries the full batch commitment; the public
+        // input equals it truncated by 32 bits.
+        proof[5 + 25] = 42 << 32;
 
         assertTrue(verifier.verify(publicInputs, proof));
+    }
+
+    function test_multiProof_commitmentMismatch_reverts() public {
+        uint256[] memory publicInputs = new uint256[](1);
+        publicInputs[0] = 42;
+
+        uint256[] memory proof = new uint256[](3 + 2 + 32);
+        proof[0] = 5;
+        proof[1] = 0;
+        proof[2] = 2;
+        // ZiSK public values commit to a DIFFERENT batch than the public input.
+        proof[5 + 25] = 43 << 32;
+
+        vm.expectRevert(
+            abi.encodeWithSelector(MultiProofVerifier.ZiskCommitmentMismatch.selector, 42, 43)
+        );
+        verifier.verify(publicInputs, proof);
     }
 
     function test_multiProof_airbenderFails_reverts() public {
@@ -109,6 +129,7 @@ contract MultiProofVerifierTest is Test {
         proof[0] = 5;
         proof[1] = 0;
         proof[2] = 2;
+        proof[5 + 25] = 42 << 32;
 
         vm.expectRevert(MultiProofVerifier.ZiskVerificationFailed.selector);
         verifier.verify(publicInputs, proof);
@@ -168,6 +189,7 @@ contract MultiProofVerifierTest is Test {
         for (uint256 i = 0; i < ziskLen; i++) {
             proof[5 + i] = i;
         }
+        proof[5 + 25] = 42 << 32;
 
         assertTrue(testnetVerifier.verify(publicInputs, proof));
     }
