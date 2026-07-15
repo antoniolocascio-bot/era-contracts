@@ -71,6 +71,25 @@ contract ZiskVerifierRealProofTest is Test {
         }
     }
 
+    /// @dev The exposed wire-form pins are exactly the fixture's public-values
+    ///      bytes [0..32] and [288..320], and the VK hash commits to them.
+    function test_pinnedWireForms_exposed() public view {
+        bytes memory publicValues = PUBLIC_VALUES;
+        bytes32 wireProgramVk;
+        bytes32 wireRootC;
+        assembly {
+            wireProgramVk := mload(add(publicValues, 32))
+            wireRootC := mload(add(publicValues, add(32, 288)))
+        }
+
+        assertEq(ziskVerifier.programVK(), wireProgramVk);
+        assertEq(ziskVerifier.rootCVadcopFinal(), wireRootC);
+        assertEq(
+            keccak256(abi.encodePacked(ziskVerifier.programVK(), ziskVerifier.rootCVadcopFinal())),
+            ziskVerifier.verificationKeyHash()
+        );
+    }
+
     function test_realProof_ziskVerifier_accepts() public view {
         uint256[] memory publicInputs = new uint256[](1);
         publicInputs[0] = uint256(BATCH_COMMITMENT) >> 32;
