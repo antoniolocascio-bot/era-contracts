@@ -10,7 +10,8 @@
 //! This module generates only the outer wrapper (`ZiskVerifier.sol`) that:
 //! - Hardcodes `programVK` (ROM Merkle root of guest ELF — changes per ELF build)
 //! - Hardcodes `rootCVadcopFinal` (vadcop final root — changes on SNARK circuit regen)
-//! - Computes `sha256(programVK || publicValues || rootCVadcopFinal) % RFIELD`
+//! - Checks the 320-byte public values open with `programVK` and close with
+//!   `rootCVadcopFinal`, then computes `sha256(publicValues) % RFIELD`
 //! - Calls the inner snarkJS PlonkVerifier for the actual SNARK check
 
 use serde::Deserialize;
@@ -57,13 +58,16 @@ pub fn generate_zisk_verifier(
         vk.root_cv_adcop_final[2], vk.root_cv_adcop_final[3],
     );
 
-    // Compute VK hash = keccak256(programVK_le_bytes || rootCVadcopFinal_le_bytes)
+    // Compute VK hash = keccak256(programVK || rootCVadcopFinal), u64 limbs
+    // serialized big-endian — the same byte order the 320-byte public values
+    // use on the wire, so the hash is derivable from the on-chain bytes as
+    // keccak256(publicValues[0..32] || publicValues[288..320]).
     let mut vk_bytes = Vec::with_capacity(64);
     for v in &vk.program_vk {
-        vk_bytes.extend_from_slice(&v.to_le_bytes());
+        vk_bytes.extend_from_slice(&v.to_be_bytes());
     }
     for v in &vk.root_cv_adcop_final {
-        vk_bytes.extend_from_slice(&v.to_le_bytes());
+        vk_bytes.extend_from_slice(&v.to_be_bytes());
     }
     let vk_hash = hex::encode(Keccak256::digest(&vk_bytes));
 

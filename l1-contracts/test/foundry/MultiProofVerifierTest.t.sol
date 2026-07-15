@@ -70,7 +70,7 @@ contract MultiProofVerifierTest is Test {
         publicInputs[0] = 42;
 
         uint256 airbenderLen = 2;
-        uint256 ziskLen = 32;
+        uint256 ziskLen = 34;
         uint256[] memory proof = new uint256[](3 + airbenderLen + ziskLen);
         proof[0] = 5;
         proof[1] = 0;
@@ -91,7 +91,7 @@ contract MultiProofVerifierTest is Test {
         uint256[] memory publicInputs = new uint256[](1);
         publicInputs[0] = 42;
 
-        uint256[] memory proof = new uint256[](3 + 2 + 32);
+        uint256[] memory proof = new uint256[](3 + 2 + 34);
         proof[0] = 5;
         proof[1] = 0;
         proof[2] = 2;
@@ -110,7 +110,7 @@ contract MultiProofVerifierTest is Test {
         uint256[] memory publicInputs = new uint256[](1);
         publicInputs[0] = 42;
 
-        uint256[] memory proof = new uint256[](3 + 2 + 32);
+        uint256[] memory proof = new uint256[](3 + 2 + 34);
         proof[0] = 5;
         proof[1] = 0;
         proof[2] = 2;
@@ -125,7 +125,7 @@ contract MultiProofVerifierTest is Test {
         uint256[] memory publicInputs = new uint256[](1);
         publicInputs[0] = 42;
 
-        uint256[] memory proof = new uint256[](3 + 2 + 32);
+        uint256[] memory proof = new uint256[](3 + 2 + 34);
         proof[0] = 5;
         proof[1] = 0;
         proof[2] = 2;
@@ -179,7 +179,7 @@ contract MultiProofVerifierTest is Test {
         publicInputs[0] = 42;
 
         uint256 airbenderLen = 2;
-        uint256 ziskLen = 32;
+        uint256 ziskLen = 34;
         uint256[] memory proof = new uint256[](3 + airbenderLen + ziskLen);
         proof[0] = 5;
         proof[1] = 0;

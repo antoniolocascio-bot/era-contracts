@@ -20,11 +20,12 @@ import {Ownable2Step} from "@openzeppelin/contracts-v4/access/Ownable2Step.sol";
 ///      proof[2]              = N  (number of Airbender proof elements)
 ///      proof[3 .. 3+N]       = Airbender SNARK proof elements
 ///      proof[3+N .. 3+N+24]  = ZiSK SNARK proof (24 uint256 = 768 bytes)
-///      proof[3+N+24 .. 3+N+32] = ZiSK public values (8 uint256 = 256 bytes):
+///      proof[3+N+24 .. 3+N+34] = ZiSK public values (10 uint256 = 320 bytes):
 ///        word 0     = programVK (guest-ELF ROM root)
-///        words 1..6 = guest publics; word 1 is the full 32-byte batch
-///                     commitment keccak256(prevState || newState || batchInfo)
-///        word 7     = vadcop-final VK
+///        words 1..8 = guest publics (ziskos's full 256-byte output region);
+///                     word 1 is the full 32-byte batch commitment
+///                     keccak256(prevState || newState || batchInfo)
+///        word 9     = vadcop-final VK (rootCVadcopFinal)
 contract MultiProofVerifier is Ownable2Step, IVerifier {
     uint256 internal constant MULTI_PROOF_TYPE = 5;
 
@@ -90,7 +91,8 @@ contract MultiProofVerifier is Ownable2Step, IVerifier {
         if (_proof.length < 3) revert ProofTooShort();
 
         uint256 airbenderLen = _proof[2];
-        if (_proof.length < 3 + airbenderLen + 32) revert ProofTooShort();
+        // 34 = 24 proof words + 10 public-values words (320 bytes).
+        if (_proof.length < 3 + airbenderLen + 34) revert ProofTooShort();
 
         uint256[] memory args = new uint256[](1);
         args[0] = _computeZKsyncOSHash(_proof[1], _publicInputs);
@@ -106,8 +108,9 @@ contract MultiProofVerifier is Ownable2Step, IVerifier {
 
         // --- Cross-proof binding ---
         // The ZiSK proof's public values embed the batch commitment it attests
-        // to (guest-publics word 1); the batch public input verified above is
-        // that same commitment truncated by 32 bits. Requiring equality binds
+        // to (public-values word 1, right after the programVK word); the batch
+        // public input verified above is that same commitment truncated by
+        // 32 bits. Requiring equality binds
         // both sub-proofs to one state transition — without it they could
         // attest to different transitions. This also enforces single-batch
         // ranges for type-5 proofs (a multi-batch public input is a chained
@@ -119,8 +122,8 @@ contract MultiProofVerifier is Ownable2Step, IVerifier {
         }
 
         // --- ZiSK verification ---
-        uint256[] memory ziskProof = new uint256[](32);
-        for (uint256 i = 0; i < 32; i++) {
+        uint256[] memory ziskProof = new uint256[](34);
+        for (uint256 i = 0; i < 34; i++) {
             ziskProof[i] = _proof[ziskStart + i];
         }
         if (!ziskVerifier.verify(args, ziskProof)) {
