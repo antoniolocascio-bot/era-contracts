@@ -190,6 +190,13 @@ contract DeployCTMScript is Script, DeployL1HelperScript {
         (addresses.stateTransition.verifierPlonk) = deploySimpleContract("VerifierPlonk", false);
         if (config.multiProofVerifier) {
             // Deploy MultiProofVerifier that requires BOTH Airbender and ZiSK proofs.
+            // ZiskVerifier wraps a pre-deployed standalone snarkJS Plonk
+            // verifier (see verifiers/README.md for its generation and
+            // deployment) passed in by address.
+            require(
+                config.ziskPlonkVerifierAddr != address(0),
+                "set zisk_plonk_verifier_addr to the deployed snarkJS Plonk verifier"
+            );
             (addresses.stateTransition.ziskVerifier) = deploySimpleContract("ZiskVerifier", false);
             (addresses.stateTransition.multiProofVerifier) = deploySimpleContract("MultiProofVerifier", false);
 

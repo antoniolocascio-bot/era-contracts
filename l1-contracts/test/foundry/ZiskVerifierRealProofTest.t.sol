@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
 import {IVerifier} from "contracts/state-transition/chain-interfaces/IVerifier.sol";
+import {ISnarkPlonkVerifier} from "contracts/state-transition/chain-interfaces/ISnarkPlonkVerifier.sol";
 import {ZiskVerifier} from "contracts/state-transition/verifiers/ZiskVerifier.sol";
 import {MultiProofVerifier} from "contracts/state-transition/verifiers/MultiProofVerifier.sol";
 
@@ -39,9 +40,30 @@ contract ZiskVerifierRealProofTest is Test {
 
     ZiskVerifier internal ziskVerifier;
     MultiProofVerifier internal multiProofVerifier;
+    bool internal plonkVerifierAvailable;
+
+    /// @dev External trampoline so a missing artifact is catchable.
+    function deployGeneratedPlonkVerifier() external returns (address) {
+        return deployCode("ZiskSnarkPlonkVerifier.sol:ZiskSnarkPlonkVerifier");
+    }
+
+    /// @dev The snarkJS Plonk verifier is generated and compiled locally
+    ///      (see verifiers/README.md); when its artifact is absent every
+    ///      test in this suite skips.
+    modifier requiresPlonkVerifier() {
+        vm.skip(!plonkVerifierAvailable);
+        _;
+    }
 
     function setUp() public {
-        ziskVerifier = new ZiskVerifier();
+        address plonkVerifier;
+        try this.deployGeneratedPlonkVerifier() returns (address deployed) {
+            plonkVerifier = deployed;
+            plonkVerifierAvailable = true;
+        } catch {
+            return;
+        }
+        ziskVerifier = new ZiskVerifier(ISnarkPlonkVerifier(plonkVerifier));
         multiProofVerifier = new MultiProofVerifier(
             IVerifier(address(new MockAirbenderVerifier())),
             IVerifier(address(ziskVerifier)),
@@ -73,7 +95,7 @@ contract ZiskVerifierRealProofTest is Test {
 
     /// @dev The exposed wire-form pins are exactly the fixture's public-values
     ///      bytes [0..32] and [288..320], and the VK hash commits to them.
-    function test_pinnedWireForms_exposed() public view {
+    function test_pinnedWireForms_exposed() public requiresPlonkVerifier {
         bytes memory publicValues = PUBLIC_VALUES;
         bytes32 wireProgramVk;
         bytes32 wireRootC;
@@ -90,14 +112,14 @@ contract ZiskVerifierRealProofTest is Test {
         );
     }
 
-    function test_realProof_ziskVerifier_accepts() public view {
+    function test_realProof_ziskVerifier_accepts() public requiresPlonkVerifier {
         uint256[] memory publicInputs = new uint256[](1);
         publicInputs[0] = uint256(BATCH_COMMITMENT) >> 32;
 
         assertTrue(ziskVerifier.verify(publicInputs, _ziskSection()));
     }
 
-    function test_realProof_multiProof_type5_accepts() public view {
+    function test_realProof_multiProof_type5_accepts() public requiresPlonkVerifier {
         // With previous_hash = 0 and a single public input, the batch public
         // input equals publicInputs[0]; it must be the ZiSK batch commitment
         // truncated by 32 bits.
@@ -119,7 +141,7 @@ contract ZiskVerifierRealProofTest is Test {
         assertTrue(multiProofVerifier.verify(publicInputs, proof));
     }
 
-    function test_realProof_tamperedPublics_rejected() public view {
+    function test_realProof_tamperedPublics_rejected() public requiresPlonkVerifier {
         uint256[] memory publicInputs = new uint256[](1);
         publicInputs[0] = uint256(BATCH_COMMITMENT) >> 32;
 
@@ -131,7 +153,7 @@ contract ZiskVerifierRealProofTest is Test {
         assertFalse(ziskVerifier.verify(publicInputs, words));
     }
 
-    function test_realProof_wrongProgramVk_rejected() public view {
+    function test_realProof_wrongProgramVk_rejected() public requiresPlonkVerifier {
         uint256[] memory publicInputs = new uint256[](1);
         publicInputs[0] = uint256(BATCH_COMMITMENT) >> 32;
 
@@ -143,7 +165,7 @@ contract ZiskVerifierRealProofTest is Test {
         assertFalse(ziskVerifier.verify(publicInputs, words));
     }
 
-    function test_realProof_wrongVadcopVk_rejected() public view {
+    function test_realProof_wrongVadcopVk_rejected() public requiresPlonkVerifier {
         uint256[] memory publicInputs = new uint256[](1);
         publicInputs[0] = uint256(BATCH_COMMITMENT) >> 32;
 
@@ -155,7 +177,7 @@ contract ZiskVerifierRealProofTest is Test {
         assertFalse(ziskVerifier.verify(publicInputs, words));
     }
 
-    function test_realProof_tamperedSnark_rejected() public view {
+    function test_realProof_tamperedSnark_rejected() public requiresPlonkVerifier {
         uint256[] memory publicInputs = new uint256[](1);
         publicInputs[0] = uint256(BATCH_COMMITMENT) >> 32;
 
@@ -167,7 +189,7 @@ contract ZiskVerifierRealProofTest is Test {
         assertFalse(ziskVerifier.verify(publicInputs, words));
     }
 
-    function test_realProof_multiProof_wrongBatchInput_rejected() public {
+    function test_realProof_multiProof_wrongBatchInput_rejected() public requiresPlonkVerifier {
         // The Airbender side (mocked to accept) claims a DIFFERENT batch than
         // the ZiSK public values commit to: the cross-proof binding must revert.
         uint256[] memory publicInputs = new uint256[](1);

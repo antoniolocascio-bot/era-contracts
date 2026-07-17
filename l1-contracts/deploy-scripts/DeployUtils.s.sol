@@ -78,6 +78,7 @@ struct Config {
     bool testnetVerifier;
     bool supportL2LegacySharedBridgeTest;
     bool multiProofVerifier;
+    address ziskPlonkVerifierAddr;
     ContractsConfig contracts;
     TokensConfig tokens;
 }
@@ -143,6 +144,11 @@ abstract contract DeployUtils is Create2FactoryUtils {
             config.multiProofVerifier = val;
         } catch {
             config.multiProofVerifier = false;
+        }
+        try vm.parseTomlAddress(toml, "$.zisk_plonk_verifier_addr") returns (address val) {
+            config.ziskPlonkVerifierAddr = val;
+        } catch {
+            config.ziskPlonkVerifierAddr = address(0);
         }
 
         config.contracts.governanceSecurityCouncilAddress = toml.readAddress(
@@ -413,7 +419,9 @@ abstract contract DeployUtils is Create2FactoryUtils {
         } else if (compareStrings(contractName, "VerifierPlonk")) {
             return abi.encode();
         } else if (compareStrings(contractName, "ZiskVerifier")) {
-            return abi.encode();
+            // The standalone snarkJS Plonk verifier this wraps; deployed
+            // beforehand (see verifiers/README.md) and passed by address.
+            return abi.encode(config.ziskPlonkVerifierAddr);
         } else if (compareStrings(contractName, "MultiProofVerifier")) {
             return abi.encode(
                 addresses.stateTransition.verifierPlonk,  // airbender verifier
